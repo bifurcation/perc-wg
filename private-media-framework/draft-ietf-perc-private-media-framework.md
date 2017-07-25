@@ -5,8 +5,8 @@
     # Generation tool: mmark (https://github.com/miekg/mmark)
     #
 
-    Title = "A Solution Framework for Private Media in Privacy Enhanced RTP Conferencing"
-    abbrev = "Private Media Framework"
+    Title = "A Framework for RTP Conferencing with End-to-End Security"
+    abbrev = "E2E Conferencing Framework"
     category = "std"
     docName = "draft-ietf-perc-private-media-framework-03"
     ipr= "trust200902"
@@ -55,7 +55,7 @@
 
 .# Abstract
 
-This document describes a solution framework for ensuring that media
+This document describes a framework for ensuring that media
 confidentiality and integrity are maintained end-to-end within the
 context of a switched conferencing environment where media
 distribution devices are not trusted with the end-to-end media
@@ -88,21 +88,22 @@ introduce a higher security risk.  Whereas traditional conference
 resources were usually deployed in private networks that were
 protected, cloud-based conference resources might be viewed as less
 secure since they are not always physically controlled by those who
-use them.  Additionally, there are usually several ports open to the
-public in cloud deployments, such as for remote administration, and so
-on.
+use them.
 
 This document defines a solution framework wherein media privacy is
 ensured by making it impossible for a media distribution device to
 gain access to keys needed to decrypt or authenticate the actual media
 content sent between conference participants. At the same time, the
-framework allows for the Media Distributors to modify certain RTP
-headers; add, remove, encrypt, or decrypt RTP header extensions; and
-encrypt and decrypt RTCP packets.  The framework also prevents replay
-attacks by authenticating each packet transmitted between a given
-participant and the media distribution device using a unique key per
-endpoint that is independent from the key for media encryption and
-authentication.
+framework allows for the Media Distributors to perform a proscribed set
+of modifications that are needed to make conferencing work:
+
+* Modify certain RTP header fieldss
+* Add, remove, encrypt, or decrypt RTP header extensions
+* Encrypt and decrypt RTCP packets
+
+The framework also prevents replay attacks by authenticating each packet
+transmitted between a given participant and the Media Distributor using a
+unique key per endpoint.
 
 A goal of this document is to define a framework for enhanced privacy
 in RTP-based conferencing environments while utilizing existing
@@ -140,7 +141,7 @@ by the PERC system, which includes, but not limited to, having no
 access to RTP media unencrypted and having limits on what RTP header
 field it can alter.
 
-Key Distributor: An entity that is a logical function which
+Key Distributor (KD): An entity that is a logical function which
 distributes keying material and related information to trusted
 endpoints and Media Distributor(s), only that which is appropriate for
 each.  The Key Distributor might be co-resident with another entity
@@ -159,33 +160,30 @@ document.
 
 # PERC Entities and Trust Model
 
-The following figure depicts the trust relationships, direct or
-indirect, between entities described in the subsequent sub-sections.
-Note that these entities may be co-located or further divided into
-multiple, separate physical devices.
+The following figure depicts the entities that are typically involved in the
+creation and management of a real-time conference.  Note that these entities
+may be co-located or further divided into multiple, separate physical devices.
 
-Please note that some entities classified as untrusted in the simple,
-general deployment scenario used most commonly in this document might
-be considered trusted in other deployments.  This document does not
-preclude such scenarios, but will keep the definitions and examples
-focused by only using the the simple, most general deployment
-scenario.
+Note that some entities classified as untrusted in the simple, general
+deployment scenario used most commonly in this document might be considered
+trusted in other deployments.  This document does not preclude such scenarios,
+but will keep the definitions and examples focused by only using the the
+simple, most general deployment scenario.
 
 {#fig-trust-model align="center"}
 ~~~
 
                        |
-   +----------+        |        +-----------------+
-   | Endpoint |        |        | Call Processing |
-   +----------+        |        +-----------------+
+    +----------+       |    +-----------------+
+    | Endpoint |       |    | Call Processing |
+    +----------+       |    +-----------------+
                        |
+ +-----------------+   |   +--------------------+
+ | Key Distributor |   |   | Media Distributor  |
+ +-----------------+   |   +--------------------+
                        |
-+----------------+     |       +--------------------+
-| Key Distributor|     |       | Media Distributor  |
-+----------------+     |       +--------------------+
-                       |
-     Trusted           |             Untrusted
-     Entities          |             Entities
+     Trusted           |         Untrusted
+     Entities          |         Entities
                        |
 
 ~~~
@@ -239,22 +237,22 @@ which is outside the scope of this framework document.
 
 ### Call Processing
 
-The call processing function is untrusted in the simple, general
-deployment scenario.  When a physical subset of the call processing
-function resides in facilities outside the trusted domain, it should
-not be trusted to have access to E2E key information.
+The call processing system facilitates connectivity between endpoints and the
+conference infrastructure (e.g., the Media Distributor and the Key
+Distributor).  This puts the call processing system in a position of great
+influence, because it is responsible for directing endpoints to the proper KD,
+and often for telling the KD which endpoints are authorized to join a call.
 
-The call processing function may include the processing of call
-signaling messages, as well as the signing of those messages.  It may
-also authenticate the endpoints for the purpose of call signaling and
-subsequently joining of a conference hosted through one or more Media
-Distributors.  Call processing may optionally ensure the privacy of
-call signaling messages between itself, the endpoint, and other
-entities.
+That said, there are good controls on this risk that enable the call processing
+to be mostly untrusted.  The call processing system **MUST** provide a way for
+the KD to authenticate each endpoint, and vice versa.  The authenticated
+identity for the KD **MUST** be one that is meaningful to the endpoint, i.e.,
+an input to the calling process rather than an ouptut.  The authenticated
+identity for an endpoint **MUST** be one that the KD can compare to its access
+control policies.  These rules enable the KD and endpoints to examine the
+participant list for a conference and detect whether unexpected parties have
+been added.
 
-In any deployment scenario where the call processing function is
-considered trusted, the call processing function **MUST** ensure the
-integrity of received messages before forwarding to other entities.
 
 ## Trusted Entities
 
@@ -288,415 +286,210 @@ The Key Distributor needs to be secured and managed in a way to
 prevent exploitation by an adversary, as any kind of compromise of the
 Key Distributor puts the security of the conference at risk.
 
-# Framework for PERC
+# Framework for End-to-End Protected Conferencing 
 
-The purpose for this framework is to define a means through which
-media privacy can be ensured when communicating within a conferencing
-environment consisting of one or more Media Distributors that only
-switch, hence not terminate, media.  It does not otherwise attempt to
-hide the fact that a conference between endpoints is taking place.
+The purpose for this framework is to define a means through which media privacy
+can be ensured when communicating within a conferencing environment consisting
+of one or more Media Distributors that only switch media (not terminate).  It
+does not otherwise attempt to hide the fact that a conference between endpoints
+is taking place.
 
 This framework reuses several specified RTP security technologies,
-including SRTP [@!RFC3711], PERC EKT [@!I-D.ietf-perc-srtp-ekt-diet],
+including SRTP [@!RFC3711], EKT [@!I-D.ietf-perc-srtp-ekt-diet],
 and DTLS-SRTP [@!RFC5764].
 
-## End-to-End and Hop-by-Hop Authenticated Encryption
+## Management of End-to-End and Hop-by-Hop Keys
 
-This solution framework focuses on the end-to-end privacy and
-integrity of the participant's media by limiting access of the
-end-to-end key information to trusted entities.  However, this
-framework does give a Media Distributor access to RTP headers and all
-or most header extensions, as well as the ability to modify a certain
-subset of those headers and to add header extensions.  Packets
-received by a Media Distributor or an endpoint are authenticated
-hop-by-hop.
+The cryptographic transforms used within this framework need to provide the
+following properties:
 
-To enable all of the above, this framework defines the use of two
-security contexts and two associated encryption keys; an "inner" key
-(E2E Key(i); i={a given endpoint}) for authenticated encryption of RTP
-media between endpoints and an "outer" key (HBH Key(j); j={a given
-hop}) for the hop between an endpoint and a Media Distributor or
-between Media Distributor.  Reference the following figure.
+* Secure the media and most header fields against the MD
+* Allow the MD to read and modify certain parts of an RTP packet
+* Secure the entire packet against network attackers
 
-~~~
-+-------------+                                +-------------+
-|             |################################|             |
-|    Media    |------------------------------->|    Media    |
-| Distributor |<-------------------------------| Distributor |
-|      X      |################################|      Y      |
-|             |          HBH Key (XY)          |             |
-+-------------+                                +-------------+
-   #  ^ |  #                                      #  ^ |  #
-   #  | |  #       HBH                  HBH       #  | |  #
-   #  | |  # <== Key(AX)              Key(YB) ==> #  | |  #
-   #  | |  #                                      #  | |  #
-   #  |<+--#---- E2E Key (A)       E2E Key (B) ---#->| |  #
-   #  | |  #                                      #  | |  #
-   #  | v  #                                      #  | v  #
-+-------------+                                +-------------+
-| Endpoint A  |                                | Endpoint B  |
-+-------------+                                +-------------+
-~~~
-Figure: E2E and HBH Keys Used for Authenticated Encryption
+That is, the transform needs to provide hop-by-hop protections against network
+attackers, and end-to-end protections agains the MD. A concrete transform that
+achieves these goals is described in [@!I-D.ietf-perc-double].
 
-The PERC Double draft specification [@!I-D.ietf-perc-double] uses
-standard SRTP keying material and recommended cryptographic
-transform(s) to first form the inner, end-to-end SRTP cryptographic
-context.  That end-to-end SRTP cryptographic context **MAY** be used
-to encrypt some RTP header extensions along with RTP media content.
-The output of this is treated like an RTP packet and encrypted again
-using the outer hop-by-hop cryptographic context.  The endpoint
-executes the entire Double operation while the Media Distributor just
-performs the outer, hop-by-hop operation.
+In general, any such transform will effectively need to have keys with two
+halves: An "end-to-end" half that is held by only the endpoints (and possibly
+the KD), and a "hop-by-hop" half that is also held by the MD.  Distributing
+these keys in a way that assures that they are only known to the appropriate
+parties is the main challenge that must be met in order to realize the security
+goals of this framework.
 
-RTCP can only be encrypted hop-by-hop, not end-to-end.  This framework
-introduces no additional step for RTCP authenticated encryption, so
-the procedures needed are specified in [@!RFC3711] and use the same
-outer, hop-by-hop cryptographic context chosen in the Double operation
-described above.
+The Key Distributor orchestrates this process:
 
-## E2E Key Confidentiality
+1. On joining the conference, an endpoint establishes a DTLS-SRTP association
+   with the KD [@!RFC5764].  Note that this may be done safely by sending DTLS
+   packets via the MD, e.g., to avoid multiple ICE negotiations.
 
-To ensure the confidentiality of E2E keys shared between endpoints,
-endpoints will make use of a common Key Encryption Key (KEK) that is
-known only by the trusted entities in a conference.  That KEK, defined
-in the PERC EKT [@!I-D.ietf-perc-srtp-ekt-diet] as the EKTKey, will be
-used to subsequently encrypt SRTP master keys used for E2E
-authenticated encryption (E2E Key(i); i={a given endpoint}) of media
-sent by a given endpoint.
+2. Over this DTLS association, the KD provides the endpoint with an "EKTKey"
+   value that the endpoint will use as key encryption key
+   [@!I-D.ietf-perc-srtp-ekt-diet].  The KD provides the same EKTKey to all
+   endpoints in the conference.
 
-{#fig-who-has-what-key align="center"}
-~~~
-+----------------------+------------+-------+-------+------------+
-| Key     /    Entity  | Endpoint A |  MD X |  MD Y | Endpoint B |
-+----------------------+------------+-------+-------+------------+
-| KEK                  |    Yes     |  No   |  No   |     Yes    |
-+----------------------+------------+-------+-------+------------+
-| E2E Key (i)          |    Yes     |  No   |  No   |     Yes    |
-+----------------------+------------+-------+-------+------------+
-| HBH Key (A<=>MD X)   |    Yes     |  Yes  |  No   |     No     |
-+----------------------+------------+-------+-------+------------+
-| HBH Key (B<=>MD Y)   |    No      |  No   |  Yes  |     Yes    |
-+----------------------+------------+---------------+------------+
-| HBH Key (MD X<=>MD Y)|    No      |  Yes  |  Yes  |     No     |
-+----------------------+------------+---------------+------------+
-~~~
-Figure: Keys per Entity
+3. The endpoint generates a "sender key" that it will use for transmitting
+   media (including both HBH and E2E halves).
 
-## E2E Keys and Endpoint Operations
+4. The endpoint encrypts its sender key using the EKTKey and transmits it in an
+   EKT message attached to its secure media.
 
-Any given RTP media flow can be identified by its SSRC, and endpoints
-might send more than one at a time and change the mix of media flows
-transmitted during the life of a conference.
+5. The MD forwards the encrypted sender key to all participants in the
+   conference.  The MD also forward the encrypted sender key to KD, over a
+   pre-existing tunnel [@ietf-perc-dtls-tunnel].
 
-Thus, endpoints **MUST** maintain a list of SSRCs from received RTP
-flows and each SSRC's associated E2E Key(i) information.  Following a
-change of the KEK (i.e., EKTKey), prior E2E Key(i) information
-**SHOULD** be retained for a period long enough to ensure that
-late-arriving or out-of-order packets from other endpoints can be
-successfully decrypted. The endpoint **MUST** discard the E2E Key(i)
-and KEK information no later than when it leaves the conference.
+6. The KD decrypts the sender key and sends the HBH half of the sender key to
+   the MD.
 
-If there is a need to encrypt one or more RTP header extensions
-end-to-end, an encryption key is derived from the end-to-end SRTP
-master key to encrypt header extensions as per [@!RFC6904].  The Media
-Distributor will not be able use the information contained in those
-header extensions encrypted with E2E keys.
+~~~~~
+                 +-------------+ 
+                 |     Key     | 
+                 | Distributor | 
+                 +-------------+ 
+                    #   ^   |
+                    #   .  HBH
+                    #   .   |
+                    #   .   V
+                 +-------------+ 
+                 |    Media    | 
+                 | Distributor | 
+                 +-------------+ 
+                   # ^  .   .
+                   # .  .   .
+   ### DTLS-SRTP ### .  .   .
+   #                 .  .   .
+   # .. SRTP + EKT ...  .   ...............
+   # .                  .                 .
+   # .                  V                 V
++----------+       +----------+      +----------+ 
+| Endpoint |       | Endpoint |      | Endpoint | 
++----------+       +----------+      +----------+ 
+~~~~~
+Figure: Distribution of SRTP keys
 
-## HBH Keys and Hop Operations
+~~~~~
+Key Type                Gen. by...  Transmitted to...
+==================================================================
+DTLS Session Keys       DTLS        n/a
+|
++> EKTKey               KD          KD -> endpoint
+   |
+   +> Sender SRTP Keys  endpoint    endpoint -> MD -> KD, endpoint
+~~~~~
 
-To ensure the integrity of transmitted media packets, this framework
-requires that every packet be authenticated hop-by-hop (HBH) between
-an endpoint and a Media Distributor, as well between Media
-Distributors.  The authentication key used for hop-by-hop
-authentication is derived from an SRTP master key shared only on the
-respective hop (HBH Key(j); j={a given hop}).  Each HBH Key(j) is
-distinct per hop and no two hops ever intentionally use the same SRTP
-master key.
+Note that the MD will not have the HBH keys it needs to be able to modify SRTP
+packets until after it has received the first SRTP packet from an endpoint.  If
+such modifications are necessary for a conference to work, it may need to
+buffer this packet (and any further media from this endpoint) until the KD
+provides the HBH key.
 
-Using hop-by-hop authentication gives the Media Distributor the
-ability to change certain RTP header values.  Which values the Media
-Distributor can change in the RTP header are defined in
-[@!I-D.ietf-perc-double].  RTCP can only be encrypted, giving the
-Media Distributor the flexibility to forward RTCP content unchanged,
-transmit compound RTCP packets or to initiate RTCP packets for
-reporting statistics or conveying other information.  Performing
-hop-by-hop authentication for all RTP and RTCP packets also helps
-provide replay protection (see (#attacks)).
+Once an endpoint has established a connection to the conference, it will begin
+receiving SRTP packets from other endpoints.  These endpoints will bear EKT
+tags containing the sender keys for those endpoints, encrypted with the EKTKey.
+The endpoint can thus use the EKT tags appended to SRTP packets to build up a
+table of per-SSRC sender keys that it can use to identify the proper key to
+decrypt a given packet.
 
-If there is a need to encrypt one or more RTP header extensions
-hop-by-hop, an encryption key is derived from the hop-by-hop SRTP
-master key to encrypt header extensions as per [@!RFC6904].  This will
-still give the Media Distributor visibility into header extensions,
-such as the one used to determine audio level [@RFC6464] of conference
-participants.  Note that when RTP header extensions are encrypted, all
-hops - in the untrusted domain at least - will need to decrypt and
-re-encrypt these encrypted header extensions.
+Because data carried in RTCP is not as sensitive as RTP media, and because
+there is a need for the MD to originate RTCP packets, RTCP is only protected by
+hop-by-hop.  The same is true with regard to encryption of RTP header
+extensions [@!RFC6904].
 
-## Key Exchange
+## Re-keying a Conference
 
-To facilitate key exchange required to establish or generate an E2E
-key and a HBH key for an endpoint and the same HBH key for the Media
-Distributor, this framework utilizes a DTLS-SRTP [@!RFC5764]
-association between an endpoint and the Key Distributor.  To establish
-this association, an endpoint will send DTLS-SRTP messages to the
-Media Distributor which will then forward them to the Key Distributor
-as defined in [@!I-D.ietf-perc-dtls-tunnel].  The Key Encryption Key
-(KEK) (i.e., EKTKey) is also conveyed by the Key Distributor over the
-DTLS association to endpoints via procedures defined in PERC EKT
-[I-D.ietf-perc-srtp-ekt-diet].
+At any point in the life of a conference, the KD may update the EKTKey used by
+participants by sending a new EKT message to each participant, over the DTLS
+association that the was established when that participant joined. 
 
-Media Distributors use DTLS-SRTP [@!RFC5764] directly with a peer
-Media Distributor to establish HBH keys for transmitting RTP and RTCP
-packets to that peer Media Distributor.  The Key Distributor does not
-facilitate establishing HBH keys for use between Media Distributors.
+When an endpoint receives such a message providing a new EKTKey, it **MUST**
+generate a new sender key and transmit that key to other participants in a Full
+EKT Field, encrypted with the new EKTKey.  Since it may take some time for all
+of the endpoints in conference to finish re-keying, senders **MUST** delay a
+short period of time before sending media encrypted with the new master key,
+and **MUST** be prepared to make use of the information from a new inbound
+EKTKey immediately. See Section 2.2.2 of [@!I-D.ietf-perc-srtp-ekt-diet].
 
-### Initial Key Exchange and Key Distributor
+# Security Considerations
 
-The procedures defined in DTLS Tunnel for PERC
-[@!I-D.ietf-perc-dtls-tunnel] establish one or more TLS tunnels
-between the Media Distributor and Key Distributor, making it is
-possible for the Media Distributor to facilitate the establishment of
-a secure DTLS association between each endpoint and the Key
-Distributor as shown the following figure.  The DTLS association
-between endpoints and the Key Distributor will enable each endpoint to
-receive E2E key information, Key Encryption Key (KEK) information
-(i.e., EKTKey), and HBH key information.  At the same time, the Key
-Distributor can securely provide the HBH key information to the Media
-Distributor.  The key information summarized here may include the SRTP
-master key, SRTP master salt, and the negotiated cryptographic
-transform.
+As noted above, the primary security goal of this protocol is to ensure that
+participants' E2E keys are only available to the KD and legitimate participants
+in a conference, and that the HBH keys are only available to that group, plus
+the MD.
 
-{#fig-initial-key-exchange align="center"}
-~~~
+This section provides an overview of how the overall system provides this
+guarantee.  Further details can be found in the consittuent protocol documents
+([TODO DTLS-SRTP], [TODO double], [TODO tunnel], [TODO EKT]).
 
-                          +-----------+ 
-                 KEK info |    Key    | HBH Key info to
-             to Endpoints |Distributor| Endpoints & Media Distributor
-                          +-----------+
-                             # ^ ^ #
-                             # | | #-TLS Tunnel
-                             # | | #
-+-----------+             +-----------+             +-----------+
-| Endpoint  |   DTLS      |   Media   |   DTLS      | Endpoint  |
-|    KEK    |<------------|Distributor|------------>|    KEK    |
-| HBH Key(j)| to Key Dist | HBH Keys  | to Key Dist | HBH Key(j)|
-+-----------+             +-----------+             +-----------+
+## Authentication and Access Control
 
-~~~
-Figure: Exchanging Key Information Between Entities
+The authentication and confidentiality properties provided by this framework
+are rooted in the DTLS exchange that the KD conducts with each of the
+endpoints.  The client and server authentication mechanisms in DTLS allow the
+KD and the endpoint each to verify that the other endpoint holds the private
+key of a particular key pair.
 
-Endpoints will establish a DTLS-SRTP association over the RTP
-session's media ports for the purposes of key information exchange
-with the Key Distributor.  The Media Distributor will not terminate
-the DTLS signaling, but will instead forward DTLS packets received
-from an endpoint on to the Key Distributor (and vice versa) via a
-tunnel established between Media Distributor and the Key Distributor.
-This tunnel is used to encapsulate the DTLS-SRTP signaling between the
-Key Distributor and endpoints will also be used to convey HBH key
-information from the Key Distributor to the Media Distributor, so no
-additional protocol or interface is required.
+It will generally be necessary for usability to associate this key pair with a
+meaningful identity.  The standard suite of identity mechanisms can be applied
+here, e.g., public-key certificates, or WebRTC identity assertions. Which
+identity mechanism is appropriate for a given scenario will depend largely on
+the call-control technique being used.
 
-### Key Exchange during a Conference
+The benefits that the endpoint and the KD get from this authentication are
+asymmetrical.  The KD can apply access controls directly based on the
+authenticated identities in order to ensure that only legitimate endpoints are
+able to access the conference.  (Mechanisms for provisioning the KD with access
+control information are beyond the scope of this document.)  Endpoints can only
+verify the identity of the KD, and must rely on the KD to apply access
+controls.  In other words, endpoints cannot authenticate the conference roster.
 
-Following the initial key information exchange with the Key
-Distributor, endpoints will be able to encrypt media end-to-end with
-their E2E Key(i), sending that E2E Key(i) to other endpoints encrypted
-with KEK, and will be able to encrypt and authenticate RTP packets
-using local HBH Key(j).  The procedures defined do not allow the Media
-Distributor to gain access to the KEK information, preventing it from
-gaining access to any endpoint's E2E key and subsequently decrypting
-media.
+The KD exchanges information with the MD over a TLS-protected channel.  The KD
+MUST authenticate the MD when establishing this TLS connection and verify that
+the authenticated identity is trusted by the KD as a destination for HBH keys.
+In most cases, X.509 certificates attesting to control of the MD's hostname
+should suffice for this authentication.
 
-The KEK (i.e., EKTKey) may need to change from time-to-time during the
-life of a conference, such as when a new participant joins or leaves a
-conference.  Dictating if, when or how often a conference is to be
-re-keyed is outside the scope of this document, but this framework
-does accommodate re-keying during the life of a conference.
+## Confidentiality of Key Distribution
 
-When a Key Distributor decides to rekey a conference, it transmits a
-specific message defined in PERC EKT [I-D.ietf-perc-srtp-ekt-diet] to
-each of the conference participants.  The endpoint **MUST** create a
-new SRTP master key and prepare to send that key inside a Full EKT
-Field using the new EKTKey. Since it may take some time for all of the
-endpoints in conference to finish re-keying, senders **MUST** delay a
-short period of time before sending media encrypted with the new
-master key, but it **MUST** be prepared to make use of the information
-from a new inbound EKTKey immediately. See Section 2.2.2 of
-[@!I-D.ietf-perc-srtp-ekt-diet].
+Assuming that KD and the endpoints have authenticated each other via DTLS, the
+key distribution process assures that E2E parts of the SRTP keys remain
+confidential to the KD and the participants, and that HBH parts are
+confidential to the KD, the MD, and the participants.
 
-# Entity Trust
+* The EKTKey used by the conference is only distributed over DTLS to authorized
+  endpoints.  Thus, it is confidential from anyone who is not a party to the
+  DTLS exchange, including the MD if the DTLS session is routed via the MD.
 
-It is important to this solution framework that the entities can trust
-and validate the authenticity of other entities, especially the Key
-Distributor and endpoints.  The details of this are outside the scope
-of specification but a few possibilities are discussed in the
-following sections.  The key requirements is that endpoints can verify
-they are connected to the correct Key Distributor for the conference
-and the Key Distributor can verify the endpoints are the correct
-endpoints for the conference.
+* The SRTP keys used by the endpoints are generated by the sending endpoint and
+  only transmitted when encrypted with the EKTKey, so they are protected from
+  the MD because the EKTKey is not available to the MD.
 
-Two possible approaches to solve this are Identity Assertions and
-Certificate Fingerprints.
+* The HBH half of each SRTP key is only transmitted to the MD after it has
+  authenticated and the KD has verified its authorization to act as an MD.
 
-## Identity Assertions {#identity}
+As in the case of authentication, endpoints must trust the KD not to distribute
+E2E keys to the MD, or HBH keys to unauthorized participants.
 
-WebRTC Identity assertion [@I-D.ietf-rtcweb-security-arch] can be used
-to bind the identity of the user of the endpoint to the fingerprint of
-the DTLS-SRTP certificate used for the call.  This certificate is
-unique for a given call and a conference.  This allows the Key
-Distributor to ensure that only authorized users participate in the
-conference. Similarly the Key Distributor can create a WebRTC Identity
-assertion to bind the fingerprint of the unique certificate used by
-the Key Distributor for this conference so that the endpoint can
-validate it is talking to the correct Key Distributor. Such a setup
-requires an Identity Provider (Idp) trusted by the endpoints and the
-Key Distributor.
+## Residual Risks from MD Interference
 
-## Certificate Fingerprints in Session Signaling
+This framework allows the MD to modify certain fields in an RTP packet:
 
-Entities managing session signaling are generally assumed to be
-untrusted in the PERC framework.  However, there are some deployment
-scenarios where parts of the session signaling may be assumed
-trustworthy for the purposes of exchanging, in a manner that can be
-authenticated, the fingerprint of an entity's certificate.
+* The payload type (PT) field
+* The sequence number (SEQ) field
+* The marker (M) flag
+* RTP header extensions
 
-As a concrete example, SIP [@RFC3261] and SDP [@RFC4566] can be used
-to convey the fingerprint information per [@RFC5763].  An endpoint's
-SIP User Agent would send an INVITE message containing SDP for the
-media session along with the endpoint's certificate fingerprint, which
-can be signed using the procedures described in [@RFC4474] for the
-benefit of forwarding the message to other entities by the Focus
-[@RFC4353].  Other entities can now verify the fingerprints match the
-certificates found in the DTLS-SRTP connections to find the identity
-of the far end of the DTLS-SRTP connection and check that is the
-authorized entity.
-
-Ultimately, if using session signaling, an endpoint's certificate
-fingerprint would need to be securely mapped to a user and conveyed to
-the Key Distributor so that it can check that that user is authorized.
-Similarly, the Key Distributor's certificate fingerprint can be
-conveyed to endpoint in a manner that can be authenticated as being an
-authorized Key Distributor for this conference.
-
-## Conferences Identification {#conf-id}
-
-The Key Distributor needs to know what endpoints are being added to a
-given conference. Thus, the Key Distributor and the Media Distributor
-will need to know endpoint-to-conference mappings, which is enabled by
-exchanging a conference-specific unique identifier as defined in
-[@!I-D.ietf-perc-dtls-tunnel].  How this unique identifier is assigned
-is outside the scope of this document.
-
-# Security Considerations {#attacks}
-
-This framework, and the individual protocols defined to support it,
-must take care to not increase the exposure to Denial of Service (DoS)
-attacks by untrusted or third-party entities and should take measures
-to mitigate, where possible, more serious DoS attacks from on-path and
-off-path attackers.
-
-The following section enumerates the kind of attacks that will be
-considered in the development of this framework's solution.
-
-##  Third Party Attacks
-
-On-path attacks are mitigated by HBH integrity protection and
-encryption.  The integrity protection mitigates packet modification
-and encryption makes selective blocking of packets harder, but not
-impossible.
-
-Off-path attackers may try connecting to different PERC entities and
-send specifically crafted packets.  A successful attacker might be
-able to get the Media Distributor to forward such packets.  If not
-making use of HBH authentication on the Media Distributor, such an
-attack could only be detected in the receiving endpoints where the
-forged packets would finally be dropped.
-
-Another potential attack is a third party claiming to be a Media
-Distributor, fooling endpoints in to sending packets to the false
-Media Distributor instead of the correct one.  The deceived sending
-endpoints could incorrectly assuming their packets have been delivered
-to endpoints when they in fact have not.  Further, the false Media
-Distributor may cascade to another legitimate Media Distributor
-creating a false version of the real conference. 
-
-This attack can be mitigated by the false Media Distributor not being
-authenticated by the Key Distributor during PERC Tunnel
-establishment. Without the tunnel in place, endpoints will not
-establish secure associations with the Key Distributor and
-receive the KEK, causing the conference to not proceed. 
-
-##   Media Distributor Attacks
-
-The Media Distributor can attack the session in a number of possible
-ways.
-
-###   Denial of service
-
-Any modification of the end-to-end authenticated data will result in
-the receiving endpoint getting an integrity failure when performing
-authentication on the received packet.
-
-The Media Distributor can also attempt to perform resource consumption
-attacks on the receiving endpoint.  One such attack would be to insert
-random SSRC/CSRC values in any RTP packet with an inband
-key-distribution message attached (i.e., Full EKT Field).  Since such
-a message would trigger the receiver to form a new cryptographic
-context, the Media Distributor can attempt to consume the receiving
-endpoints resources.
-
-Another denial of service attack is where the Media Distributor
-rewrites the PT field to indicate a different codec.  The effect of
-this attack is that any payload packetized and encoded according to
-one RTP payload format is then processed using another payload format
-and codec.  Assuming that the implementation is robust to random
-input, it is unlikely to cause crashes in the receiving
-software/hardware.  However, it is not unlikely that such rewriting
-will cause severe media degradation.
-
-For audio formats, this attack is likely to cause highly disturbing
-audio and/or can be damaging to hearing and playout equipment.
-
-###  Replay Attack
-
-Replay attack is when an already received packets from a previous
-point in the RTP stream is replayed as new packet.  This could, for
-example, allow a Media Distributor to transmit a sequence of packets
-identified as a user saying "yes", instead of the "no" the user
-actually said.
-
-The mitigation for a replay attack is to prevent old packets beyond a
-small-to-modest jitter and network re-ordering sized window to be
-rejected.  End-to-end replay protection **MUST** be provided for the
-whole duration of the conference.
-
-###  Delayed Playout Attack
-
-The delayed playout attack is a variant of the replay attack.  This
-attack is possible even if E2E replay protection is in place.
-However, due to fact that the Media Distributor is allowed to select a
-sub-set of streams and not forward the rest to a receiver, such as in
-forwarding only the most active speakers, the receiver has to accept
-gaps in the E2E packet sequence.  The issue with this is that a Media
-Distributor can select to not deliver a particular stream for a while.
-
-Within the window from last packet forwarded to the receiver and the
-latest received by the Media Distributor, the Media Distributor can
-select an arbitrary starting point when resuming forwarding packets.
-Thus what the media source said can be substantially delayed at the
-receiver with the receiver believing that it is what was said just
-now, and only delayed due to transport delay.
-
-###  Splicing Attack
-
-The splicing attack is an attack where a Media Distributor receiving
-multiple media sources splices one media stream into the other.  If
-the Media Distributor is able to change the SSRC without the receiver
-having any method for verifying the original source ID, then the Media
-Distributor could first deliver stream A and then later forward stream
-B under the same SSRC as stream A was previously using.  Not allowing
-the Media Distributor to change the SSRC mitigates this attack.
+Even though the MD cannot read or modify media within this framework, an MD
+could use modifications in this field to affect how receivers process the
+E2E-protected media.  For example, the MD could rewrite the PT field to
+indicate a different codec than the one selected by the sender.  This
+modification would cause a payload packetized and encoded according to one RTP
+payload format to be processed using another payload format and codec.
+Assuming that the implementation is robust to random input, it is unlikely that
+this will cause crashes in the receiving software/hardware (though still
+possible).  However, it is not unlikely that such rewriting will cause severe
+media degradation.  For audio formats, this attack is likely to cause highly
+disturbing audio and/or can be damaging to hearing and playout equipment.
 
 # IANA Considerations
 
